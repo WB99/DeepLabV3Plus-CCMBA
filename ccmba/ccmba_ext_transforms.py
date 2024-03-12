@@ -9,6 +9,9 @@ from PIL import Image
 import cv2
 import os
 
+# Save blurred images
+output_dir = '/Users/wb/DeepLabV3Plus-CCMBA/ccmba/test_blurred_images'
+os.makedirs(output_dir, exist_ok=True)  # Create the output directory if it doesn't exist
 
 ################### functions for blurring
 def blurwithkernel(s_img, k_img):
@@ -16,8 +19,9 @@ def blurwithkernel(s_img, k_img):
     s_img = np.array(s_img)/255
     k_img = np.array(k_img)
     filtered = cv2.filter2D(src=s_img, kernel=k_img/np.sum(np.sum(k_img[:,:,0])), ddepth=-1)
+    
+    # filtered = cv2.filter2D(src=s_img, kernel=k_img/np.sum(k_img), ddepth=-1) # for example kernels: take in 2d kernel instead of 3d 
     imout = Image.fromarray((filtered*255).astype(np.uint8))
-#    imout.save('blurred_val.jpg')
     return imout
 
 def objectselectivemotionblur(sharp,objectsegmap,kernel):
@@ -37,6 +41,8 @@ def objectselectivemotionblur(sharp,objectsegmap,kernel):
 
 
 
+
+
 # Transform for class centric motion blur ###################################################
 #
 class ExtCCMBA(object):
@@ -46,10 +52,9 @@ class ExtCCMBA(object):
         output_size (tuple or int): Desired output size. If int, square crop
             is made.
     """
-    def __init__(self, p=0.5, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise', blurlevels = [1,2,3]):
+    def __init__(self, p=0.5, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise'):
         self.kerneldirectory = kerneldirectory
-        # blurlevels = [1,2,3]
-        self.blurlevels = blurlevels
+        blurlevels = [1,2,3]
         self.kernelpathslist = []
         subdirlist = os.listdir(self.kerneldirectory)
         for subdir in subdirlist:
@@ -105,16 +110,21 @@ class ExtCCMBA(object):
             #objectselective motion blurring
             out = objectselectivemotionblur(img,objectsegmap,kernel)
             outlist.append(out)
+            
+            # save blurred result
+            index = str(np.random.randint(0,999999))
+            out.save(os.path.join(output_dir, '{}_blurred_image.jpg'.format(index)))
+            img.save(os.path.join(output_dir, '{}_sharp_image.jpg'.format(index)))
             return outlist[0],lbl
         else:
             return img,lbl
-
 
 #
 #  Extended Transforms for Semantic Segmentation
 #
 class ExtRandomHorizontalFlip(object):
     """Horizontally flip the given PIL Image randomly with a given probability.
+
     Args:
         p (float): probability of the image being flipped. Default value is 0.5
     """
@@ -122,16 +132,20 @@ class ExtRandomHorizontalFlip(object):
     def __init__(self, p=0.5):
         self.p = p
 
-    def __call__(self, img, lbl):
+    def __call__(self, imglist, lbl):
         """
         Args:
             img (PIL Image): Image to be flipped.
+
         Returns:
             PIL Image: Randomly flipped image.
         """
+        imglist2 = []
         if random.random() < self.p:
-            return F.hflip(img), F.hflip(lbl)
-        return img, lbl
+            for img in imglist:
+                imglist2.append(F.hflip(img))
+            return  imglist2, F.hflip(lbl)
+        return imglist, lbl
 
     def __repr__(self):
         return self.__class__.__name__ + '(p={})'.format(self.p)
@@ -152,10 +166,10 @@ class ExtCompose(object):
     def __init__(self, transforms):
         self.transforms = transforms
 
-    def __call__(self, img, lbl):
+    def __call__(self, imglist, lbl):
         for t in self.transforms:
-            img, lbl = t(img, lbl)
-        return img, lbl
+            imglist, lbl = t(imglist, lbl)
+        return imglist, lbl
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '('
@@ -180,14 +194,17 @@ class ExtCenterCrop(object):
         else:
             self.size = size
 
-    def __call__(self, img, lbl):
+    def __call__(self, imglist, lbl):
         """
         Args:
             img (PIL Image): Image to be cropped.
         Returns:
             PIL Image: Cropped image.
         """
-        return F.center_crop(img, self.size), F.center_crop(lbl, self.size)
+        imglist2 =[]
+        for img in imglist:
+            imglist2.append(F.center_crop(img, self.size))
+        return imglist2, F.center_crop(lbl, self.size)
 
     def __repr__(self):
         return self.__class__.__name__ + '(size={0})'.format(self.size)
@@ -198,7 +215,7 @@ class ExtRandomScale(object):
         self.scale_range = scale_range
         self.interpolation = interpolation
 
-    def __call__(self, img, lbl):
+    def __call__(self,  img,  lbl):
         """
         Args:
             img (PIL Image): Image to be scaled.
@@ -207,10 +224,11 @@ class ExtRandomScale(object):
             PIL Image: Rescaled image.
             PIL Image: Rescaled label.
         """
-        assert img.size == lbl.size
         scale = random.uniform(self.scale_range[0], self.scale_range[1])
+        assert img.size == lbl.size
         target_size = ( int(img.size[1]*scale), int(img.size[0]*scale) )
-        return F.resize(img, target_size, self.interpolation), F.resize(lbl, target_size, Image.NEAREST)
+        img2 = F.resize(img, target_size, self.interpolation)
+        return img2, F.resize(lbl, target_size, Image.NEAREST)
 
     def __repr__(self):
         interpolate_str = _pil_interpolation_to_str[self.interpolation]
@@ -228,7 +246,7 @@ class ExtScale(object):
         self.scale = scale
         self.interpolation = interpolation
 
-    def __call__(self, img, lbl):
+    def __call__(self,  imglist,  lbl):
         """
         Args:
             img (PIL Image): Image to be scaled.
@@ -238,8 +256,12 @@ class ExtScale(object):
             PIL Image: Rescaled label.
         """
         assert img.size == lbl.size
-        target_size = ( int(img.size[1]*self.scale), int(img.size[0]*self.scale) ) # (H, W)
-        return F.resize(img, target_size, self.interpolation), F.resize(lbl, target_size, Image.NEAREST)
+        imglist2 =[]
+        for img in imglist:
+            target_size = ( int(img.size[1]*self.scale), int(img.size[0]*self.scale) ) # (H, W)
+            imglist2.append(F.resize(img, target_size, self.interpolation))
+
+        return imglist2, F.resize(lbl, target_size, Image.NEAREST)
 
     def __repr__(self):
         interpolate_str = _pil_interpolation_to_str[self.interpolation]
@@ -289,7 +311,7 @@ class ExtRandomRotation(object):
 
         return angle
 
-    def __call__(self, img, lbl):
+    def __call__(self,  imglist,  lbl):
         """
             img (PIL Image): Image to be rotated.
             lbl (PIL Image): Label to be rotated.
@@ -299,8 +321,10 @@ class ExtRandomRotation(object):
         """
 
         angle = self.get_params(self.degrees)
-
-        return F.rotate(img, angle, self.resample, self.expand, self.center), F.rotate(lbl, angle, self.resample, self.expand, self.center)
+        imglist2 = []
+        for img in imglist:
+            imglist2.append(F.rotate(img, angle, self.resample, self.expand, self.center))
+        return imglist2, F.rotate(lbl, angle, self.resample, self.expand, self.center)
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '(degrees={0}'.format(self.degrees)
@@ -320,15 +344,17 @@ class ExtRandomHorizontalFlip(object):
     def __init__(self, p=0.5):
         self.p = p
 
-    def __call__(self, img, lbl):
+    def __call__(self,  img,  lbl):
         """
         Args:
             img (PIL Image): Image to be flipped.
         Returns:
             PIL Image: Randomly flipped image.
         """
+
         if random.random() < self.p:
-            return F.hflip(img), F.hflip(lbl)
+            img2=F.hflip(img)
+            return img2, F.hflip(lbl)
         return img, lbl
 
     def __repr__(self):
@@ -344,7 +370,7 @@ class ExtRandomVerticalFlip(object):
     def __init__(self, p=0.5):
         self.p = p
 
-    def __call__(self, img, lbl):
+    def __call__(self,  imglist,  lbl):
         """
         Args:
             img (PIL Image): Image to be flipped.
@@ -354,23 +380,32 @@ class ExtRandomVerticalFlip(object):
             PIL Image: Randomly flipped label.
         """
         if random.random() < self.p:
-            return F.vflip(img), F.vflip(lbl)
-        return img, lbl
+            imglist2 = []
+            for img in imglist:
+                imglist2.append(F.vflip(img))
+            return imglist2, F.vflip(lbl)
+            # return F.vflip(img), F.vflip(lbl)
+        return imglist, lbl
 
     def __repr__(self):
         return self.__class__.__name__ + '(p={})'.format(self.p)
+
+
 
 class ExtPad(object):
     def __init__(self, diviser=32):
         self.diviser = diviser
     
-    def __call__(self, img, lbl):
-        h, w = img.size
+    def __call__(self,  imglist,  lbl):
+        h, w = imglist[0].size
         ph = (h//32+1)*32 - h if h%32!=0 else 0
         pw = (w//32+1)*32 - w if w%32!=0 else 0
-        im = F.pad(img, ( pw//2, pw-pw//2, ph//2, ph-ph//2) )
+
+        imglist2 = []
+        for img in imglist:
+            imglist2.append(F.pad(img, ( pw//2, pw-pw//2, ph//2, ph-ph//2) ))
         lbl = F.pad(lbl, ( pw//2, pw-pw//2, ph//2, ph-ph//2))
-        return im, lbl
+        return imlist2, lbl
 
 class ExtToTensor(object):
     """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor.
@@ -380,7 +415,7 @@ class ExtToTensor(object):
     def __init__(self, normalize=True, target_type='uint8'):
         self.normalize = normalize
         self.target_type = target_type
-    def __call__(self, pic, lbl):
+    def __call__(self,  pic,  lbl):
         """
         Note that labels will not be normalized to [0, 1].
         Args:
@@ -390,9 +425,11 @@ class ExtToTensor(object):
             Tensor: Converted image and label
         """
         if self.normalize:
-            return F.to_tensor(pic), torch.from_numpy( np.array( lbl, dtype=self.target_type) )
+            pic2 = F.to_tensor(pic)
+            return pic2, torch.from_numpy( np.array( lbl, dtype=self.target_type) )
         else:
-            return torch.from_numpy( np.array( pic, dtype=np.float32).transpose(2, 0, 1) ), torch.from_numpy( np.array( lbl, dtype=self.target_type) )
+            pic2 = torch.from_numpy( np.array( pic, dtype=np.float32).transpose(2, 0, 1) )
+            return pic2, torch.from_numpy( np.array( lbl, dtype=self.target_type) )
 
     def __repr__(self):
         return self.__class__.__name__ + '()'
@@ -420,7 +457,8 @@ class ExtNormalize(object):
             Tensor: Normalized Tensor image.
             Tensor: Unchanged Tensor label
         """
-        return F.normalize(tensor, self.mean, self.std), lbl
+        tensor2 = F.normalize(tensor, self.mean, self.std)
+        return tensor2, lbl
 
     def __repr__(self):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
@@ -475,6 +513,7 @@ class ExtRandomCrop(object):
             PIL Image: Cropped image.
             PIL Image: Cropped label.
         """
+        #print(imglist.size, lbl.size)
         assert img.size == lbl.size, 'size of img and lbl should be the same. %s, %s'%(img.size, lbl.size)
         if self.padding > 0:
             img = F.pad(img, self.padding)
@@ -492,10 +531,10 @@ class ExtRandomCrop(object):
 
         i, j, h, w = self.get_params(img, self.size)
 
-        return F.crop(img, i, j, h, w), F.crop(lbl, i, j, h, w)
+        img2 = F.crop(img, i,j, h, w)
 
-    def __repr__(self):
-        return self.__class__.__name__ + '(size={0}, padding={1})'.format(self.size, self.padding)
+        return img2, F.crop(lbl, i, j, h, w)
+
 
 
 class ExtResize(object):
@@ -515,14 +554,17 @@ class ExtResize(object):
         self.size = size
         self.interpolation = interpolation
 
-    def __call__(self, img, lbl):
+    def __call__(self, imglist, lbl):
         """
         Args:
             img (PIL Image): Image to be scaled.
         Returns:
             PIL Image: Rescaled image.
         """
-        return F.resize(img, self.size, self.interpolation), F.resize(lbl, self.size, Image.NEAREST)
+        imglist2 =[]
+        for img in imglist:
+            imglist2.append(F.resize(img, self.size, self.interpolation))
+        return imglist2, F.resize(lbl, self.size, Image.NEAREST)
 
     def __repr__(self):
         interpolate_str = _pil_interpolation_to_str[self.interpolation]
@@ -530,6 +572,7 @@ class ExtResize(object):
     
 class ExtColorJitter(object):
     """Randomly change the brightness, contrast and saturation of an image.
+
     Args:
         brightness (float or tuple of float (min, max)): How much to jitter brightness.
             brightness_factor is chosen uniformly from [max(0, 1 - brightness), 1 + brightness]
@@ -573,7 +616,9 @@ class ExtColorJitter(object):
     @staticmethod
     def get_params(brightness, contrast, saturation, hue):
         """Get a randomized transform to be applied on image.
+
         Arguments are same as that of __init__.
+
         Returns:
             Transform which randomly adjusts brightness, contrast and
             saturation in a random order.
@@ -601,16 +646,21 @@ class ExtColorJitter(object):
 
         return transform
 
-    def __call__(self, img, lbl):
+    def __call__(self, imglist, lbl):
         """
         Args:
             img (PIL Image): Input image.
+
         Returns:
             PIL Image: Color jittered image.
         """
+        imglist2 = []
         transform = self.get_params(self.brightness, self.contrast,
                                     self.saturation, self.hue)
-        return transform(img), lbl
+        for im in imglist:
+            imglist2.append(transform(im))
+
+        return imglist2, lbl
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '('
@@ -622,6 +672,7 @@ class ExtColorJitter(object):
 
 class Lambda(object):
     """Apply a user-defined lambda as a transform.
+
     Args:
         lambd (function): Lambda/function to be used for transform.
     """
@@ -639,8 +690,10 @@ class Lambda(object):
 
 class Compose(object):
     """Composes several transforms together.
+
     Args:
         transforms (list of ``Transform`` objects): list of transforms to compose.
+
     Example:
         >>> transforms.Compose([
         >>>     transforms.CenterCrop(10),
@@ -663,3 +716,111 @@ class Compose(object):
             format_string += '    {0}'.format(t)
         format_string += '\n)'
         return format_string
+
+
+
+
+#### F****D UPP!!!! ####### 
+# class ExtRandomCrop(object):
+#     """Crop the given PIL Image at a random location.
+#     Args:
+#         size (sequence or int): Desired output size of the crop. If size is an
+#             int instead of sequence like (h, w), a square crop (size, size) is
+#             made.
+#         padding (int or sequence, optional): Optional padding on each border
+#             of the image. Default is 0, i.e no padding. If a sequence of length
+#             4 is provided, it is used to pad left, top, right, bottom borders
+#             respectively.
+#         pad_if_needed (boolean): It will pad the image if smaller than the
+#             desired size to avoid raising an exception.
+#     """
+
+#     def __init__(self, size, padding=0, pad_if_needed=True):
+#         if isinstance(size, numbers.Number):
+#             self.size = (int(size), int(size))
+#         else:
+#             self.size = size
+#         self.padding = padding
+#         self.pad_if_needed = pad_if_needed
+
+#     @staticmethod
+#     def get_params(img, output_size):
+#         """Get parameters for ``crop`` for a random crop.
+#         Args:
+#             img (PIL Image): Image to be cropped.
+#             output_size (tuple): Expected output size of the crop.
+#         Returns:
+#             tuple: params (i, j, h, w) to be passed to ``crop`` for random crop.
+#         """
+#         w, h = img.size
+#         print('imgsize', w,h)
+#         th, tw = output_size
+#         print('patchsize', w,h)
+
+#         if w == tw and h == th:
+#             return 0, 0, h, w
+
+#         i = random.randint(0, h - th)
+#         j = random.randint(0, w - tw)
+#         return i, j, th, tw
+
+#     def __call__(self, imglist, lbl):
+#         """
+#         Args:
+#             img (PIL Image): Image to be cropped.
+#             lbl (PIL Image): Label to be cropped.
+#         Returns:
+#             PIL Image: Cropped image.
+#             PIL Image: Cropped label.
+#         """
+#         for img in imglist:
+#             # img= imglist[0]
+#             assert img.size == lbl.size, 'size of img and lbl should be the same. %s, %s'%(img.size, lbl.size)
+#         print('1')
+#         print(imglist[0].size, self.size)
+#         print(imglist[1].size, self.size)
+
+#         # imglist2 = []
+#         if self.padding > 0:
+#             # imglist2=[]
+#             for z,img in enumerate(imglist):
+#                 imglist[z]=F.pad(img, self.padding)
+#             # imglist = imglist2
+#             lbl = F.pad(lbl, self.padding)
+#         print('2')
+#         print(imglist[0].size, self.size)
+#         print(imglist[1].size, self.size)
+#         # pad the width if needed
+#         if self.pad_if_needed and img.size[0] < self.size[1]:
+#             for z,img in enumerate(imglist):
+#                 print('inside 1')
+#                 # assert img.size == lbl.size, 'size of img and lbl should be the same. %s, %s'%(img.size, lbl.size)
+#                 imglist[z]=F.pad(img, padding=int((1 + self.size[1] - img.size[0]) / 2))
+#             # img = F.pad(img, padding=int((1 + self.size[1] - img.size[0]) / 2))
+#             # imglist = imglist2
+#             lbl = F.pad(lbl, padding=int((1 + self.size[1] - lbl.size[0]) / 2))
+#         print('3')
+#         print(imglist[0].size, self.size)
+#         print(imglist[1].size, self.size)
+#         # pad the height if needed
+#         if self.pad_if_needed and img.size[1] < self.size[0]:
+#             # imglist2=[]
+#             print('inside 2')
+#             for z,img in enumerate(imglist):
+#                 # assert img.size == lbl.size, 'size of img and lbl should be the same. %s, %s'%(img.size, lbl.size)
+#                 imglist[z] = F.pad(img, padding=int((1 + self.size[0] - img.size[1]) / 2))
+#             # img = F.pad(img, padding=int((1 + self.size[0] - img.size[1]) / 2))
+#             # imglist = imglist2
+#             lbl = F.pad(lbl, padding=int((1 + self.size[0] - lbl.size[1]) / 2))
+
+#         imglist3=[]
+#         # if len(imglist2) == 0:
+#             # imglist2 = imglist 
+#         i, j, h, w = self.get_params(imglist[0], self.size)
+#         for img in imglist:
+#             imglist3.append(F.crop(img, i, j, h, w))
+
+#         return imglist3, F.crop(lbl, i, j, h, w)
+
+#     def __repr__(self):
+#         return self.__class__.__name__ + '(size={0}, padding={1})'.format(self.size, self.padding)

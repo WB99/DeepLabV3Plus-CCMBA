@@ -27,7 +27,7 @@ def get_argparser():
     parser.add_argument("--data_root", type=str, default='./datasets/data',
                         help="path to Dataset")
     parser.add_argument("--dataset", type=str, default='voc',
-                        choices=['voc', 'cityscapes'], help='Name of dataset')
+                        choices=['voc', 'cityscapes', 'voc_ccmba'], help='Name of dataset')
     parser.add_argument("--num_classes", type=int, default=None,
                         help="num classes (default: None)")
 
@@ -79,6 +79,11 @@ def get_argparser():
                         help="epoch interval for eval (default: 100)")
     parser.add_argument("--download", action='store_true', default=False,
                         help="download datasets")
+    
+    # Test Options - only L1, L2, or L3 blurred images in test dataset
+    parser.add_argument("--l1_only", action='store_true', default=False)
+    parser.add_argument("--l2_only", action='store_true', default=False)
+    parser.add_argument("--l3_only", action='store_true', default=False)
 
     # PASCAL VOC Options
     parser.add_argument("--year", type=str, default='2012',
@@ -128,6 +133,71 @@ def get_dataset(opts):
         val_dst = VOCSegmentation(root=opts.data_root, year=opts.year,
                                   image_set='val', download=False, transform=val_transform)
 
+    if opts.dataset == 'voc_ccmba':
+        train_transform = et.ExtCompose([
+            et.ExtRandomScale((0.5, 2.0)),
+            et.ExtRandomCrop(size=(opts.crop_size, opts.crop_size), pad_if_needed=True),
+            et.ExtCCMBA(kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise'),
+            et.ExtRandomHorizontalFlip(),
+            et.ExtToTensor(),
+            et.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225]),
+        ])
+        # always use crop_val!!
+        if opts.crop_val:
+            # Test Options - only L1, L2, or L3 blurred images in test dataset
+            if opts.l1_only:
+                val_transform = et.ExtCompose([
+                    et.ExtResize(opts.crop_size),
+                    et.ExtCenterCrop(opts.crop_size),
+                    et.ExtCCMBA(p=1.0, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise', blurlevels=[1]),
+                    et.ExtToTensor(),
+                    et.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+                ])
+            elif opts.l2_only:
+                val_transform = et.ExtCompose([
+                    et.ExtResize(opts.crop_size),
+                    et.ExtCenterCrop(opts.crop_size),
+                    et.ExtCCMBA(p=1.0, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise', blurlevels=[2]),
+                    et.ExtToTensor(),
+                    et.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+                ])
+            elif opts.l3_only:
+                val_transform = et.ExtCompose([
+                    et.ExtResize(opts.crop_size),
+                    et.ExtCenterCrop(opts.crop_size),
+                    et.ExtCCMBA(p=1.0, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise', blurlevels=[3]),
+                    et.ExtToTensor(),
+                    et.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+                ])
+            else:
+                val_transform = et.ExtCompose([
+                    et.ExtResize(opts.crop_size),
+                    et.ExtCenterCrop(opts.crop_size),
+                    et.ExtCCMBA(kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise'),
+                    et.ExtToTensor(),
+                    et.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]),
+                ])
+
+        else:
+            val_transform = et.ExtCompose([
+                et.ExtCCMBA(kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise'),
+                et.ExtToTensor(),
+                et.ExtNormalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225]),
+            ])
+        
+
+        train_dst = VOCSegmentation(root=opts.data_root, year=opts.year,
+                                    image_set='train', download=opts.download, transform=train_transform)
+        val_dst = VOCSegmentation(root=opts.data_root, year=opts.year,
+                                  image_set='val', download=False, transform=val_transform)
+        
+
     if opts.dataset == 'cityscapes':
         train_transform = et.ExtCompose([
             # et.ExtResize( 512 ),
@@ -150,6 +220,7 @@ def get_dataset(opts):
                                split='train', transform=train_transform)
         val_dst = Cityscapes(root=opts.data_root,
                              split='val', transform=val_transform)
+    
     return train_dst, val_dst
 
 
@@ -210,7 +281,7 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
 
 def main():
     opts = get_argparser().parse_args()
-    if opts.dataset.lower() == 'voc':
+    if opts.dataset.lower() == 'voc' or opts.dataset.lower() == 'voc_ccmba':
         opts.num_classes = 21
     elif opts.dataset.lower() == 'cityscapes':
         opts.num_classes = 19
@@ -231,7 +302,7 @@ def main():
     random.seed(opts.random_seed)
 
     # Setup dataloader
-    if opts.dataset == 'voc' and not opts.crop_val:
+    if (opts.dataset == 'voc' or opts.dataset == 'voc_ccmba') and not opts.crop_val:
         opts.val_batch_size = 1
 
     train_dst, val_dst = get_dataset(opts)
