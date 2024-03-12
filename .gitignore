@@ -9,8 +9,5 @@ results
 checkpoints_bak
 cityscapes
 test_results
-ccmba/blur_kernels_levelwise
-ccmba/old blur kernels and blur results
-ccmba/test_blurred_images
 datasets/data
-gopro_test_results
+
