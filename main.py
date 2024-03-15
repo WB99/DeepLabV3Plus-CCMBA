@@ -45,7 +45,9 @@ def get_argparser():
     # Train Options
     parser.add_argument("--test_only", action='store_true', default=False)
     parser.add_argument("--save_val_results", action='store_true', default=False,
-                        help="save segmentation results to \"./results\"")
+                        help="save segmentation results to \"./results\" by default")
+    parser.add_argument("--results_dir", default=None,
+                        help="save segmentation results to the specified dir")
     parser.add_argument("--total_itrs", type=int, default=30e3,
                         help="epoch number (default: 30k)")
     parser.add_argument("--lr", type=float, default=0.01,
@@ -229,8 +231,11 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
     metrics.reset()
     ret_samples = []
     if opts.save_val_results:
-        if not os.path.exists('results'):
-            os.mkdir('results')
+        if opts.results_dir is not None:
+            os.makedirs(opts.results_dir, exist_ok=True)
+        else:
+            if not os.path.exists('results'):
+                os.mkdir('results')
         denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406],
                                    std=[0.229, 0.224, 0.225])
         img_id = 0
@@ -260,9 +265,15 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
                     target = loader.dataset.decode_target(target).astype(np.uint8)
                     pred = loader.dataset.decode_target(pred).astype(np.uint8)
 
-                    Image.fromarray(image).save('results/%d_image.png' % img_id)
-                    Image.fromarray(target).save('results/%d_target.png' % img_id)
-                    Image.fromarray(pred).save('results/%d_pred.png' % img_id)
+                    if opts.results_dir:
+                        Image.fromarray(image).save(f'{opts.results_dir}/{img_id}_image.png')
+                        Image.fromarray(target).save(f'{opts.results_dir}/{img_id}_target.png')
+                        Image.fromarray(pred).save(f'{opts.results_dir}/{img_id}_pred.png')
+
+                    else:
+                        Image.fromarray(image).save('results/%d_image.png' % img_id)
+                        Image.fromarray(target).save('results/%d_target.png' % img_id)
+                        Image.fromarray(pred).save('results/%d_pred.png' % img_id)
 
                     fig = plt.figure()
                     plt.imshow(image)
@@ -271,7 +282,11 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
                     ax = plt.gca()
                     ax.xaxis.set_major_locator(matplotlib.ticker.NullLocator())
                     ax.yaxis.set_major_locator(matplotlib.ticker.NullLocator())
-                    plt.savefig('results/%d_overlay.png' % img_id, bbox_inches='tight', pad_inches=0)
+                    if opts.results_dir:
+                        plt.savefig(f'{opts.results_dir}/{img_id}_overlay.png', bbox_inches='tight', pad_inches=0)
+
+                    else:
+                        plt.savefig('results/%d_overlay.png' % img_id, bbox_inches='tight', pad_inches=0)
                     plt.close()
                     img_id += 1
 
