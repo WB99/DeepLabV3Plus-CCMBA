@@ -137,7 +137,7 @@ def get_dataset(opts):
         train_transform = et.ExtCompose([
             et.ExtRandomScale((0.5, 2.0)),
             et.ExtRandomCrop(size=(opts.crop_size, opts.crop_size), pad_if_needed=True),
-            et.ExtCCMBA(kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise'),
+            et.ExtCCMBA(kerneldirectory='ccmba/blur_kernels_levelwise'),
             et.ExtRandomHorizontalFlip(),
             et.ExtToTensor(),
             et.ExtNormalize(mean=[0.485, 0.456, 0.406],
@@ -150,7 +150,7 @@ def get_dataset(opts):
                 val_transform = et.ExtCompose([
                     et.ExtResize(opts.crop_size),
                     et.ExtCenterCrop(opts.crop_size),
-                    et.ExtCCMBA(p=1.0, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise', blurlevels=[1]),
+                    et.ExtCCMBA(p=1.0, kerneldirectory='ccmba/blur_kernels_levelwise', blurlevels=[1]),
                     et.ExtToTensor(),
                     et.ExtNormalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225]),
@@ -159,7 +159,7 @@ def get_dataset(opts):
                 val_transform = et.ExtCompose([
                     et.ExtResize(opts.crop_size),
                     et.ExtCenterCrop(opts.crop_size),
-                    et.ExtCCMBA(p=1.0, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise', blurlevels=[2]),
+                    et.ExtCCMBA(p=1.0, kerneldirectory='ccmba/blur_kernels_levelwise', blurlevels=[2]),
                     et.ExtToTensor(),
                     et.ExtNormalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225]),
@@ -168,7 +168,7 @@ def get_dataset(opts):
                 val_transform = et.ExtCompose([
                     et.ExtResize(opts.crop_size),
                     et.ExtCenterCrop(opts.crop_size),
-                    et.ExtCCMBA(p=1.0, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise', blurlevels=[3]),
+                    et.ExtCCMBA(p=1.0, kerneldirectory='ccmba/blur_kernels_levelwise', blurlevels=[3]),
                     et.ExtToTensor(),
                     et.ExtNormalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225]),
@@ -177,7 +177,7 @@ def get_dataset(opts):
                 val_transform = et.ExtCompose([
                     et.ExtResize(opts.crop_size),
                     et.ExtCenterCrop(opts.crop_size),
-                    et.ExtCCMBA(kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise'),
+                    et.ExtCCMBA(kerneldirectory='ccmba/blur_kernels_levelwise'),
                     et.ExtToTensor(),
                     et.ExtNormalize(mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225]),
@@ -185,7 +185,7 @@ def get_dataset(opts):
 
         else:
             val_transform = et.ExtCompose([
-                et.ExtCCMBA(kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise'),
+                et.ExtCCMBA(kerneldirectory='ccmba/blur_kernels_levelwise'),
                 et.ExtToTensor(),
                 et.ExtNormalize(mean=[0.485, 0.456, 0.406],
                                 std=[0.229, 0.224, 0.225]),

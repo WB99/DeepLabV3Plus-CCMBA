@@ -46,7 +46,7 @@ class ExtCCMBA(object):
         output_size (tuple or int): Desired output size. If int, square crop
             is made.
     """
-    def __init__(self, p=0.5, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise', blurlevels = [1,2,3]):
+    def __init__(self, p=0.5, kerneldirectory='ccmba/blur_kernels_levelwise', blurlevels = [1,2,3]):
         self.kerneldirectory = kerneldirectory
         # blurlevels = [1,2,3]
         self.blurlevels = blurlevels

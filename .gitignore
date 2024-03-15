@@ -6,8 +6,10 @@ checkpoints
 .idea/
 __pycache__
 results
-checkpoints_bak
 cityscapes
 test_results
 datasets/data
-
+datasets/GOPRO_large_test_blur
+datasets/REDS_test_blur
+old_checkpoints_voc_ccmba_retrain
+older_checkpoints

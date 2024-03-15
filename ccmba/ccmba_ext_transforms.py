@@ -10,7 +10,7 @@ import cv2
 import os
 
 # Save blurred images
-output_dir = '/Users/wb/DeepLabV3Plus-CCMBA/ccmba/test_blurred_images'
+output_dir = 'ccmba/test_blurred_images'
 os.makedirs(output_dir, exist_ok=True)  # Create the output directory if it doesn't exist
 
 ################### functions for blurring
@@ -52,7 +52,7 @@ class ExtCCMBA(object):
         output_size (tuple or int): Desired output size. If int, square crop
             is made.
     """
-    def __init__(self, p=0.5, kerneldirectory='/Users/wb/DeepLabV3Plus-CCMBA/ccmba/blur_kernels_levelwise'):
+    def __init__(self, p=0.5, kerneldirectory='blur_kernels_levelwise'):
         self.kerneldirectory = kerneldirectory
         blurlevels = [1,2,3]
         self.kernelpathslist = []
